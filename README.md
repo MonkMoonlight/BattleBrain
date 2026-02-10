@@ -26,7 +26,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
 # install dependencies
-pip install fastapi uvicorn scikit-learn requests joblib
+pip install -r requirements.txt
 
 # start server
 uvicorn main:app --reload
