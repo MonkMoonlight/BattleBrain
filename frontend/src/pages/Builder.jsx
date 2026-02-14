@@ -99,59 +99,87 @@ export default function Builder() {
   }
 
   return (
-    <div className="builderGrid">
-      <section className="card panel partyPanel">
-        <h2 className="panelTitle">Party</h2>
+    <div className="builderLayout">
+      {/* Top row: Party + Enemy */}
+      <div className="builderPanels">
+        <section className="card panel partyPanel">
+          <h2 className="panelTitle">Party</h2>
 
-        <label className="field">
-          HP
-          <input className="input" type="number" value={partyHp} onChange={(e) => setPartyHp(e.target.value)} />
-          {fieldErrors.partyHp && <div className="fieldError">{fieldErrors.partyHp}</div>}
-        </label>
-
-        <label className="field">
-          AC
-          <input className="input" type="number" value={partyAc} onChange={(e) => setPartyAc(e.target.value)} />
-          {fieldErrors.partyAc && <div className="fieldError">{fieldErrors.partyAc}</div>}
-        </label>
-      </section>
-
-      <section className="card panel enemyPanel">
-        <h2 className="panelTitle">Enemy</h2>
-
-        <label className="field">
-          HP
-          <input className="input" type="number" value={enemyHp} onChange={(e) => setEnemyHp(e.target.value)} />
-          {fieldErrors.enemyHp && <div className="fieldError">{fieldErrors.enemyHp}</div>}
-        </label>
-
-        <label className="field">
-          AC
-          <input className="input" type="number" value={enemyAc} onChange={(e) => setEnemyAc(e.target.value)} />
-          {fieldErrors.enemyAc && <div className="fieldError">{fieldErrors.enemyAc}</div>}
-        </label>
-
-        <div className="divider" />
-
-        <div className="row">
-          <label className="field grow">
-            Monster
+          <label className="field">
+            HP
             <input
               className="input"
-              type="text"
-              value={monsterSearch}
-              onChange={(e) => setMonsterSearch(e.target.value)}
-              placeholder="e.g., goblin"
+              type="number"
+              value={partyHp}
+              onChange={(e) => setPartyHp(e.target.value)}
             />
+            {fieldErrors.partyHp && <div className="fieldError">{fieldErrors.partyHp}</div>}
           </label>
 
-          <button className="btn" onClick={onSearchMonster} disabled={loadingMonster || !monsterSearch.trim()}>
-            {loadingMonster ? "Searching..." : "Search"}
-          </button>
-        </div>
-      </section>
+          <label className="field">
+            AC
+            <input
+              className="input"
+              type="number"
+              value={partyAc}
+              onChange={(e) => setPartyAc(e.target.value)}
+            />
+            {fieldErrors.partyAc && <div className="fieldError">{fieldErrors.partyAc}</div>}
+          </label>
+        </section>
 
-      <section className="card panel actionPanel">
+        <section className="card panel enemyPanel">
+          <h2 className="panelTitle">Enemy</h2>
+
+          <label className="field">
+            HP
+            <input
+              className="input"
+              type="number"
+              value={enemyHp}
+              onChange={(e) => setEnemyHp(e.target.value)}
+            />
+            {fieldErrors.enemyHp && <div className="fieldError">{fieldErrors.enemyHp}</div>}
+          </label>
+
+          <label className="field">
+            AC
+            <input
+              className="input"
+              type="number"
+              value={enemyAc}
+              onChange={(e) => setEnemyAc(e.target.value)}
+            />
+            {fieldErrors.enemyAc && <div className="fieldError">{fieldErrors.enemyAc}</div>}
+          </label>
+
+          <div className="divider" />
+
+          <div className="row">
+            <label className="field grow">
+              Monster
+              <input
+                className="input"
+                type="text"
+                value={monsterSearch}
+                onChange={(e) => setMonsterSearch(e.target.value)}
+                placeholder="e.g., goblin"
+              />
+            </label>
+
+            <button
+              className="btn"
+              onClick={onSearchMonster}
+              disabled={loadingMonster || !monsterSearch.trim()}
+            >
+              {loadingMonster ? "Searching..." : "Search"}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      {/* Bottom row: Prediction centered under both */}
+      <section className="card panel actionPanel builderActions">
         <h2 className="panelTitle">Prediction</h2>
 
         <button className="btn primary big" onClick={onPredict} disabled={loadingPredict}>

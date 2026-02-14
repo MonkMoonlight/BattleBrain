@@ -1,4 +1,6 @@
 import { NavLink, Routes, Route, Navigate } from "react-router-dom";
+import logo from "./assets/battlebrain-logo.png";
+
 import Login from "./pages/Login.jsx";
 import Builder from "./pages/Builder.jsx";
 import Results from "./pages/Results.jsx";
@@ -8,24 +10,41 @@ export default function App() {
   return (
     <div className="appShell">
       <header className="topNav">
+        {/* Left: Brand + Logo */}
         <div className="brand">
-          <div className="brandMark">BattleBrain</div>
-          <div className="brandSub">by Forge &amp; Code</div>
+          <img className="brandLogo" src={logo} alt="BattleBrain logo" />
+          <div>
+            <div className="brandMark">BattleBrain</div>
+            <div className="brandSub">by Forge &amp; Code</div>
+          </div>
         </div>
 
+        {/* Right: Navigation */}
         <nav className="navLinks">
-          <NavLink to="/builder" className={({ isActive }) => (isActive ? "navItem active" : "navItem")}>
+          <NavLink
+            to="/builder"
+            className={({ isActive }) => (isActive ? "navItem active" : "navItem")}
+          >
             Builder
           </NavLink>
-          <NavLink to="/results" className={({ isActive }) => (isActive ? "navItem active" : "navItem")}>
+
+          <NavLink
+            to="/results"
+            className={({ isActive }) => (isActive ? "navItem active" : "navItem")}
+          >
             Results
           </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => (isActive ? "navItem active" : "navItem")}>
+
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => (isActive ? "navItem active" : "navItem")}
+          >
             Settings
           </NavLink>
         </nav>
       </header>
 
+      {/* Page content */}
       <main className="pageWrap">
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
