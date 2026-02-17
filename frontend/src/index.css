@@ -302,10 +302,11 @@ body{
 
 .loginStage{
   min-height: 100vh;
+  position: relative;
   display: flex;
   justify-content: center;
-  align-items: center;     /* center vertically instead of bottom */
-  padding-top: 220px;      /* pushes card slightly below logo */
+  align-items: center;     
+  padding-top: 220px;      
   background-repeat: no-repeat;
   background-position: center 120px;
   background-size: 520px auto;
@@ -315,13 +316,16 @@ body{
   content: "";
   position: absolute;
   inset: 0;
-  background: url("/src/assets/battlebrain-logo.png") no-repeat center 120px;
+  background: url("/src/assets/battlebrain-logo.png") no-repeat center -60px;
   background-size: 680px auto;
   opacity: 0.95;
   pointer-events: none;
+  z-index: 0;
 }
 
 .loginCard{
+  position: relative;
+  z-index: 1; 
   width: min(420px, 92vw);
   padding: 18px;
   text-align: center;
