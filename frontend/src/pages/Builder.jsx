@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchMonsterByName, predictEncounter } from "../lib/api.js";
 import { validateStats } from "../lib/validate.js";
@@ -34,6 +34,29 @@ export default function Builder() {
   const [loadingMonster, setLoadingMonster] = useState(false);
   const [loadingPredict, setLoadingPredict] = useState(false);
 
+  useEffect(() => {
+    try {
+      const lastStatsRaw = sessionStorage.getItem("bb_last_stats");
+      const enemyListRaw = sessionStorage.getItem("bb_enemy_list");
+
+      if (lastStatsRaw) {
+        const lastStats = JSON.parse(lastStatsRaw);
+        if (typeof lastStats.party_hp === "number") setPartyHp(lastStats.party_hp);
+        if (typeof lastStats.party_ac === "number") setPartyAc(lastStats.party_ac);
+      }
+
+      if (enemyListRaw) {
+        const list = JSON.parse(enemyListRaw);
+        if (Array.isArray(list) && list.length > 0) {
+          setEnemies(list);
+          if (list[0]?.id) setSelectedEnemyId(list[0].id);
+        }
+      }
+    } catch {
+      // ignore invalid storage
+    }
+  }, []);
+
   const effectiveEnemy = useMemo(() => {
     const totalHp = enemies.reduce((sum, e) => {
       const hp = Number(e.hp) || 0;
@@ -59,6 +82,9 @@ export default function Builder() {
     [partyHp, partyAc, effectiveEnemy]
   );
 
+  const isValidEncounter =
+    stats.partyHp > 0 && stats.partyAc > 0 && stats.enemyHp > 0 && stats.enemyAc > 0;
+
   const [fieldErrors, setFieldErrors] = useState({});
 
   function resetEncounter() {
@@ -79,6 +105,11 @@ export default function Builder() {
     const id = newId();
     setEnemies((prev) => [...prev, { id, name: "", fullName: "", hp: "", ac: "", qty: 1 }]);
     setSelectedEnemyId(id);
+
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
   }
 
   function removeEnemy(id) {
@@ -197,6 +228,7 @@ export default function Builder() {
 
               return (
                 <div
+                  id={e.id}
                   key={e.id}
                   style={{
                     padding: 10,
@@ -297,7 +329,16 @@ export default function Builder() {
               />
             </label>
 
-            <button className="btn" onClick={onSearchMonster} disabled={loadingMonster || !monsterSearch.trim()}>
+            <button
+              className="btn"
+              onClick={onSearchMonster}
+              disabled={loadingMonster || !monsterSearch.trim()}
+              title={
+                !monsterSearch.trim()
+                  ? "Enter a monster name to search Open5e"
+                  : ""
+              }
+            >
               {loadingMonster ? "Searching..." : "Search"}
             </button>
           </div>
@@ -314,7 +355,25 @@ export default function Builder() {
       <section className="card panel actionPanel builderActions">
         <h2 className="panelTitle">Prediction</h2>
 
-        <button className="btn primary big" onClick={onPredict} disabled={loadingPredict}>
+        <button
+          className="btn primary big"
+          onClick={onPredict}
+          disabled={
+            loadingPredict ||
+            stats.partyHp < 1 ||
+            stats.partyAc < 1 ||
+            stats.enemyHp < 1 ||
+            stats.enemyAc < 1
+          }
+          title={
+            stats.partyHp < 1 ||
+            stats.partyAc < 1 ||
+            stats.enemyHp < 1 ||
+            stats.enemyAc < 1
+              ? "Enter valid Party and Enemy stats to enable prediction."
+              : ""
+          }
+        >
           {loadingPredict ? "Predicting..." : "Predict Encounter"}
         </button>
 

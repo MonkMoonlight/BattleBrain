@@ -52,7 +52,9 @@ body{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 0px 24px;
+  height: 84px;            
+  overflow: visible;        
   border-bottom: 1px solid var(--border);
   background: rgba(18,24,38,.65);
   backdrop-filter: blur(10px);
@@ -61,25 +63,22 @@ body{
 .brand{
   display:flex;
   align-items:center;
-  gap:12px;
+  gap:14px;
+  line-height: 1.1;          
 }
+
 .brandLogo{
-  width:44px;
-  height:44px;
-  object-fit:contain;
-  border-radius:10px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.12);
-  padding:6px;
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  display: block;
+  margin: -23px 0;          
 }
-.brandMark{
-  font-weight: 800;
-  letter-spacing: .3px;
-}
+
 .brandSub{
-  font-size: 12px;
-  color: var(--muted);
+  margin-top: 2px;     
 }
+
 
 .navLinks{
   display: flex;
@@ -301,21 +300,31 @@ body{
   place-items: center;
 }
 
+.loginStage{
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;     /* center vertically instead of bottom */
+  padding-top: 220px;      /* pushes card slightly below logo */
+  background-repeat: no-repeat;
+  background-position: center 120px;
+  background-size: 520px auto;
+}
+
+.loginStage::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/src/assets/battlebrain-logo.png") no-repeat center 120px;
+  background-size: 680px auto;
+  opacity: 0.95;
+  pointer-events: none;
+}
+
 .loginCard{
   width: min(420px, 92vw);
   padding: 18px;
   text-align: center;
-}
-
-.loginLogo{
-  width: 86px;
-  height: 86px;
-  border-radius: 18px;
-  margin: 6px auto 10px auto;
-  background: radial-gradient(circle at 30% 30%, rgba(246,195,67,.35), transparent 55%),
-              radial-gradient(circle at 70% 70%, rgba(35,197,82,.28), transparent 55%),
-              rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.14);
 }
 
 .loginTitle{
@@ -416,6 +425,22 @@ body{
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(255,255,255,.10);
   margin-bottom: 8px;
+}
+
+.winBar {
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  overflow: hidden;
+}
+
+.winFill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(229,72,77,.9), rgba(246,195,67,.9), rgba(35,197,82,.9));
+  transition: width .35s ease;
 }
 
 /* ---- Settings ---- */

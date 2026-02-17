@@ -1,12 +1,13 @@
 import { useNavigate } from "react-router-dom";
+import logo from "../assets/battlebrain-logo.png";
+
 
 export default function Login() {
   const navigate = useNavigate();
 
   return (
-    <div className="centerStage">
+    <div className="loginStage">
       <div className="card loginCard">
-        <div className="loginLogo" aria-hidden="true" />
         <h1 className="loginTitle">BattleBrain</h1>
         <p className="muted">Encounter prediction for tabletop RPGs</p>
 
