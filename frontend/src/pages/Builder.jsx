@@ -9,22 +9,40 @@ function newId() {
     : String(Date.now() + Math.random());
 }
 
+const PARTY_CLASSES = [
+  "Artificer",
+  "Barbarian",
+  "Bard",
+  "Cleric",
+  "Druid",
+  "Fighter",
+  "Monk",
+  "Paladin",
+  "Ranger",
+  "Rogue",
+  "Sorcerer",
+  "Warlock",
+  "Wizard",
+];
+
 export default function Builder() {
   const navigate = useNavigate();
 
-  const [partyHp, setPartyHp] = useState(120);
-  const [partyAc, setPartyAc] = useState(15);
-
   const [init] = useState(() => {
-    const id = newId();
+    const enemyId = newId();
+    const memberId = newId();
     return {
-      id,
-      enemies: [{ id, name: "", fullName: "", hp: "", ac: "", qty: 1 }],
+      enemyId,
+      memberId,
+      enemies: [{ id: enemyId, label: "", name: "", fullName: "", hp: "0", ac: "0", qty: 1 }],
+      party: [{ id: memberId, name: "", className: "Fighter", hp: "0", ac: "0" }],
     };
   });
 
   const [enemies, setEnemies] = useState(init.enemies);
-  const [selectedEnemyId, setSelectedEnemyId] = useState(init.id);
+  const [selectedEnemyId, setSelectedEnemyId] = useState(init.enemyId);
+
+  const [partyMembers, setPartyMembers] = useState(init.party);
 
   const [monsterSearch, setMonsterSearch] = useState("");
 
@@ -38,12 +56,7 @@ export default function Builder() {
     try {
       const lastStatsRaw = sessionStorage.getItem("bb_last_stats");
       const enemyListRaw = sessionStorage.getItem("bb_enemy_list");
-
-      if (lastStatsRaw) {
-        const lastStats = JSON.parse(lastStatsRaw);
-        if (typeof lastStats.party_hp === "number") setPartyHp(lastStats.party_hp);
-        if (typeof lastStats.party_ac === "number") setPartyAc(lastStats.party_ac);
-      }
+      const partyListRaw = sessionStorage.getItem("bb_party_list");
 
       if (enemyListRaw) {
         const list = JSON.parse(enemyListRaw);
@@ -52,10 +65,42 @@ export default function Builder() {
           if (list[0]?.id) setSelectedEnemyId(list[0].id);
         }
       }
+
+      if (partyListRaw) {
+        const list = JSON.parse(partyListRaw);
+        if (Array.isArray(list) && list.length > 0) {
+          setPartyMembers(
+            list.map((m) => ({
+              id: m.id || newId(),
+              name: typeof m.name === "string" ? m.name : "",
+              className: PARTY_CLASSES.includes(m.className) ? m.className : "Fighter",
+              hp: m.hp ?? "",
+              ac: m.ac ?? "",
+            }))
+          );
+        }
+      } else if (lastStatsRaw) {
+        const lastStats = JSON.parse(lastStatsRaw);
+        const hp = typeof lastStats.party_hp === "number" ? lastStats.party_hp : "";
+        const ac = typeof lastStats.party_ac === "number" ? lastStats.party_ac : "";
+        setPartyMembers([{ id: newId(), name: "", className: "Fighter", hp, ac }]);
+      }
     } catch {
       // ignore invalid storage
     }
   }, []);
+
+  const effectiveParty = useMemo(() => {
+    const totalHp = partyMembers.reduce((sum, m) => sum + (Number(m.hp) || 0), 0);
+
+    const acNums = partyMembers
+      .map((m) => Number(m.ac))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    const avgAc = acNums.length > 0 ? Math.round(acNums.reduce((a, b) => a + b, 0) / acNums.length) : 0;
+
+    return { partyHp: totalHp, partyAc: avgAc };
+  }, [partyMembers]);
 
   const effectiveEnemy = useMemo(() => {
     const totalHp = enemies.reduce((sum, e) => {
@@ -74,26 +119,25 @@ export default function Builder() {
 
   const stats = useMemo(
     () => ({
-      partyHp: Number(partyHp),
-      partyAc: Number(partyAc),
+      partyHp: Number(effectiveParty.partyHp),
+      partyAc: Number(effectiveParty.partyAc),
       enemyHp: Number(effectiveEnemy.enemyHp),
       enemyAc: Number(effectiveEnemy.enemyAc),
     }),
-    [partyHp, partyAc, effectiveEnemy]
+    [effectiveParty, effectiveEnemy]
   );
-
-  const isValidEncounter =
-    stats.partyHp > 0 && stats.partyAc > 0 && stats.enemyHp > 0 && stats.enemyAc > 0;
 
   const [fieldErrors, setFieldErrors] = useState({});
 
-  function resetEncounter() {
-    setPartyHp(120);
-    setPartyAc(15);
+  const isValidEncounter = stats.partyHp > 0 && stats.partyAc > 0 && stats.enemyHp > 0 && stats.enemyAc > 0;
 
-    const id = newId();
-    setEnemies([{ id, name: "", fullName: "", hp: "", ac: "", qty: 1 }]);
-    setSelectedEnemyId(id);
+  function resetEncounter() {
+    const enemyId = newId();
+    const memberId = newId();
+
+    setPartyMembers([{ id: memberId, name: "", className: "Fighter", hp: "0", ac: "0" }]);
+    setEnemies([{ id: enemyId, label: "", name: "", fullName: "", hp: "0", ac: "0", qty: 1 }]);
+    setSelectedEnemyId(enemyId);
 
     setMonsterSearch("");
     setStatus("");
@@ -101,9 +145,30 @@ export default function Builder() {
     setFieldErrors({});
   }
 
+  function addPartyMember() {
+    const id = newId();
+    setPartyMembers((prev) => [...prev, { id, name: "", className: "Fighter", hp: "0", ac: "0" }]);
+    setTimeout(() => {
+      const el = document.getElementById(`pm-${id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  }
+
+  function removePartyMember(id) {
+    setPartyMembers((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      if (next.length === 0) return [{ id: newId(), name: "", className: "Fighter", hp: "0", ac: "0" }];
+      return next;
+    });
+  }
+
+  function updatePartyMember(id, patch) {
+    setPartyMembers((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  }
+
   function addEnemy() {
     const id = newId();
-    setEnemies((prev) => [...prev, { id, name: "", fullName: "", hp: "", ac: "", qty: 1 }]);
+    setEnemies((prev) => [...prev, { id, label: "", name: "", fullName: "", hp: "0", ac: "0", qty: 1 }]);
     setSelectedEnemyId(id);
 
     setTimeout(() => {
@@ -117,7 +182,7 @@ export default function Builder() {
       const next = prev.filter((e) => e.id !== id);
 
       if (next.length === 0) {
-        const newOne = { id: newId(), name: "", fullName: "", hp: "", ac: "", qty: 1 };
+        const newOne = { id: newId(), label: "", name: "", fullName: "", hp: "0", ac: "0", qty: 1 };
         setSelectedEnemyId(newOne.id);
         return [newOne];
       }
@@ -158,7 +223,7 @@ export default function Builder() {
       } else {
         setStatus(data?.message || "No monster found");
       }
-    } catch (e) {
+    } catch {
       setError("Open5e request failed. Confirm backend is running.");
     } finally {
       setLoadingMonster(false);
@@ -189,10 +254,11 @@ export default function Builder() {
       sessionStorage.setItem("bb_last_stats", JSON.stringify(payload));
       sessionStorage.setItem("bb_last_prediction", JSON.stringify(prediction));
       sessionStorage.setItem("bb_enemy_list", JSON.stringify(enemies));
+      sessionStorage.setItem("bb_party_list", JSON.stringify(partyMembers));
 
       setStatus("Done");
       navigate("/results");
-    } catch (e) {
+    } catch {
       setError("Predict request failed. Confirm backend is running.");
       setStatus("");
     } finally {
@@ -204,19 +270,107 @@ export default function Builder() {
     <div className="builderLayout">
       <div className="builderPanels">
         <section className="card panel partyPanel">
-          <h2 className="panelTitle">Party</h2>
+          <h2 className="panelTitle">Party Members</h2>
 
-          <label className="field">
-            HP
-            <input className="input" type="number" value={partyHp} onChange={(e) => setPartyHp(e.target.value)} />
-            {fieldErrors.partyHp && <div className="fieldError">{fieldErrors.partyHp}</div>}
-          </label>
+          <div style={{ display: "grid", gap: 10 }}>
+            {partyMembers.map((m, idx) => {
+              return (
+                <div
+                  id={`pm-${m.id}`}
+                  key={m.id}
+                  style={{
+                    padding: 10,
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,.10)",
+                    background: "rgba(255,255,255,.04)",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <div style={{ fontWeight: 700 }}>
+                      {m.name ? m.name : `Member ${idx + 1}`}
+                      {m.className ? ` — ${m.className}` : ""}
+                    </div>
 
-          <label className="field">
-            AC
-            <input className="input" type="number" value={partyAc} onChange={(e) => setPartyAc(e.target.value)} />
-            {fieldErrors.partyAc && <div className="fieldError">{fieldErrors.partyAc}</div>}
-          </label>
+                    <div style={{ marginLeft: "auto" }}>
+                      <button
+                        className="btn danger"
+                        type="button"
+                        onClick={() => removePartyMember(m.id)}
+                        disabled={partyMembers.length === 1}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="divider" style={{ margin: "10px 0" }} />
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1fr", gap: 10 }}>
+                    <label className="field" style={{ marginBottom: 0 }}>
+                      Name (optional)
+                      <input
+                        className="input"
+                        type="text"
+                        value={m.name}
+                        onChange={(ev) => updatePartyMember(m.id, { name: ev.target.value })}
+                        placeholder="e.g., Kira"
+                      />
+                    </label>
+
+                    <label className="field" style={{ marginBottom: 0 }}>
+                      Class
+                      <select
+                        className="input"
+                        value={m.className}
+                        onChange={(ev) => updatePartyMember(m.id, { className: ev.target.value })}
+                      >
+                        {PARTY_CLASSES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="field" style={{ marginBottom: 0 }}>
+                      HP
+                      <input
+                        className="input"
+                        type="number"
+                        value={m.hp}
+                        onChange={(ev) => updatePartyMember(m.id, { hp: ev.target.value })}
+                      />
+                    </label>
+
+                    <label className="field" style={{ marginBottom: 0 }}>
+                      AC
+                      <input
+                        className="input"
+                        type="number"
+                        value={m.ac}
+                        onChange={(ev) => updatePartyMember(m.id, { ac: ev.target.value })}
+                      />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="divider" />
+
+          <div className="row">
+            <button className="btn" type="button" onClick={addPartyMember}>
+              + Add Member
+            </button>
+
+            <div style={{ marginLeft: "auto", color: "rgba(231,238,252,.85)", fontSize: 13 }}>
+              Effective Party: <b>HP {effectiveParty.partyHp}</b> · <b>AC {effectiveParty.partyAc}</b>
+            </div>
+          </div>
+
+          {fieldErrors.partyHp && <div className="fieldError">{fieldErrors.partyHp}</div>}
+          {fieldErrors.partyAc && <div className="fieldError">{fieldErrors.partyAc}</div>}
         </section>
 
         <section className="card panel enemyPanel">
@@ -248,7 +402,7 @@ export default function Builder() {
                     </button>
 
                     <div style={{ fontWeight: 700 }}>
-                      Enemy {idx + 1}
+                      {e.label ? e.label : `Enemy ${idx + 1}`}
                       {e.name ? ` — ${e.name}` : ""}
                       {e.fullName && e.fullName !== e.name && (
                         <div className="muted tiny" style={{ marginTop: 6 }}>
@@ -277,25 +431,41 @@ export default function Builder() {
                       <input
                         className="input"
                         type="text"
-                        value={e.name}
-                        onChange={(ev) => updateEnemy(e.id, { name: ev.target.value })}
-                        placeholder="e.g., goblin"
+                        value={e.label}
+                        onChange={(ev) => updateEnemy(e.id, { label: ev.target.value })}
+                        placeholder="e.g., Jim"
                       />
                     </label>
 
                     <label className="field" style={{ marginBottom: 0 }}>
                       HP
-                      <input className="input" type="number" value={e.hp} onChange={(ev) => updateEnemy(e.id, { hp: ev.target.value })} />
+                      <input
+                        className="input"
+                        type="number"
+                        value={e.hp}
+                        onChange={(ev) => updateEnemy(e.id, { hp: ev.target.value })}
+                      />
                     </label>
 
                     <label className="field" style={{ marginBottom: 0 }}>
                       AC
-                      <input className="input" type="number" value={e.ac} onChange={(ev) => updateEnemy(e.id, { ac: ev.target.value })} />
+                      <input
+                        className="input"
+                        type="number"
+                        value={e.ac}
+                        onChange={(ev) => updateEnemy(e.id, { ac: ev.target.value })}
+                      />
                     </label>
 
                     <label className="field" style={{ marginBottom: 0 }}>
                       Qty
-                      <input className="input" type="number" min={1} value={e.qty} onChange={(ev) => updateEnemy(e.id, { qty: ev.target.value })} />
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        value={e.qty}
+                        onChange={(ev) => updateEnemy(e.id, { qty: ev.target.value })}
+                      />
                     </label>
                   </div>
                 </div>
@@ -333,11 +503,7 @@ export default function Builder() {
               className="btn"
               onClick={onSearchMonster}
               disabled={loadingMonster || !monsterSearch.trim()}
-              title={
-                !monsterSearch.trim()
-                  ? "Enter a monster name to search Open5e"
-                  : ""
-              }
+              title={!monsterSearch.trim() ? "Enter a monster name to search Open5e" : ""}
             >
               {loadingMonster ? "Searching..." : "Search"}
             </button>
@@ -358,21 +524,8 @@ export default function Builder() {
         <button
           className="btn primary big"
           onClick={onPredict}
-          disabled={
-            loadingPredict ||
-            stats.partyHp < 1 ||
-            stats.partyAc < 1 ||
-            stats.enemyHp < 1 ||
-            stats.enemyAc < 1
-          }
-          title={
-            stats.partyHp < 1 ||
-            stats.partyAc < 1 ||
-            stats.enemyHp < 1 ||
-            stats.enemyAc < 1
-              ? "Enter valid Party and Enemy stats to enable prediction."
-              : ""
-          }
+          disabled={loadingPredict || !isValidEncounter}
+          title={!isValidEncounter ? "Enter valid Party and Enemy stats to enable prediction." : ""}
         >
           {loadingPredict ? "Predicting..." : "Predict Encounter"}
         </button>
@@ -383,10 +536,6 @@ export default function Builder() {
 
         {status && <div className="status ok">{status}</div>}
         {error && <div className="status err">{error}</div>}
-
-        <p className="muted tiny">
-          MVP note: Multi-enemy encounters are aggregated for prediction (HP sum, AC max). Simulation is a future upgrade.
-        </p>
       </section>
     </div>
   );

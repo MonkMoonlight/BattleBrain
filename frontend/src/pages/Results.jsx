@@ -132,6 +132,7 @@ Win Probability: ${winPct}% (${diff.label})`;
               sessionStorage.removeItem("bb_last_stats");
               sessionStorage.removeItem("bb_last_prediction");
               sessionStorage.removeItem("bb_enemy_list");
+              sessionStorage.removeItem("bb_party_list");
               navigate("/builder");
             }}
           >
