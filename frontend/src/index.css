@@ -183,6 +183,16 @@ body{
   cursor: pointer;
   transition: transform .05s ease, background .15s ease, border-color .15s ease;
 }
+/* Search button active state */
+.btn.searchActive{
+  background: rgba(246,195,67,.28);      /* gold tint */
+  border-color: rgba(246,195,67,.65);
+  color: #fff8dc;
+}
+
+.btn.searchActive:hover{
+  background: rgba(246,195,67,.36);
+}
 .btn:hover{
   background: rgba(255,255,255,.10);
   border-color: rgba(255,255,255,.22);
@@ -198,6 +208,12 @@ body{
 .btn.primary{
   background: rgba(35,197,82,.30);
   border-color: rgba(35,197,82,.65);
+}
+.btn.primary:disabled{
+  background: rgba(35,197,82,.08);   /* much darker green */
+  border-color: rgba(35,197,82,.18);
+  color: rgba(231,238,252,.45);
+  box-shadow: none;
 }
 
 .btn.primary:hover{
@@ -351,6 +367,54 @@ body{
   padding: 16px;
 }
 
+/* Add glow based on difficulty tone */
+.tone-safe{
+  box-shadow:
+    0 0 0 1px rgba(15, 252, 82, 0.20),
+    0 14px 32px rgba(0,0,0,.45),
+    0 0 26px rgba(0, 255, 72, 0.39);
+}
+
+.tone-risky{
+  box-shadow:
+    0 0 0 1px rgba(244, 175, 0, 0.20),
+    0 14px 32px rgba(0,0,0,.45),
+    0 0 26px rgba(253, 181, 0, 0.372);
+}
+
+.tone-deadly{
+  box-shadow:
+    0 0 0 1px rgba(255, 0, 8, 0.22),
+    0 14px 32px rgba(0,0,0,.45),
+    0 0 28px rgba(255, 0, 8, 0.377);
+  animation: deadlyPulse 1.6s ease-in-out infinite;
+}
+
+/* Subtle pulse for deadly */
+@keyframes deadlyPulse{
+  0% {
+    transform: translateY(0);
+    box-shadow:
+      0 0 0 1px rgba(255, 0, 8, 0.22),
+      0 14px 32px rgba(0,0,0,.45),
+      0 0 20px rgba(255, 0, 8, 0.16);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow:
+      0 0 0 1px rgba(255, 0, 8, 0.30),
+      0 16px 36px rgba(0,0,0,.50),
+      0 0 34px rgba(255, 0, 8, 0.26);
+  }
+  100% {
+    transform: translateY(0);
+    box-shadow:
+      0 0 0 1px rgba(255, 0, 8, 0.22),
+      0 14px 32px rgba(0,0,0,.45),
+      0 0 20px rgba(255, 0, 8, 0.16);
+  }
+}
+
 .heroProb{
   display: grid;
   gap: 8px;
@@ -360,16 +424,43 @@ body{
   background: rgba(255,255,255,.04);
   margin-bottom: 12px;
 }
+
 .heroLabel{ color: var(--muted); font-size: 13px; }
 .heroValue{ font-size: 42px; font-weight: 900; line-height: 1; }
+.heroRow{
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+/* Flavor text under the pill */
+.heroFlavor{
+  color: rgba(231,238,252,.88);
+  font-size: 13px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
 
 .pill{
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 30px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+}
+.pill{ 
   width: fit-content;
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
   border: 1px solid rgba(255,255,255,.14);
   background: rgba(255,255,255,.06);
+}
+
+.heroProb .pill{
+  font-size: 36px; 
+  padding: 6px 14px; 
+  line-height: 1;
 }
 .pill.safe{ border-color: rgba(35,197,82,.55); background: rgba(35,197,82,.14); }
 .pill.risky{ border-color: rgba(246,195,67,.55); background: rgba(246,195,67,.14); }
@@ -384,6 +475,7 @@ body{
 @media (max-width: 560px){
   .metricRow{ grid-template-columns: 1fr; }
 }
+
 .metric{
   padding: 12px;
   border-radius: 14px;
@@ -431,7 +523,7 @@ body{
   margin-bottom: 8px;
 }
 
-.winBar {
+.winBar{
   height: 12px;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.12);
@@ -439,12 +531,88 @@ body{
   overflow: hidden;
 }
 
-.winFill {
+.winFill{
   height: 100%;
   width: 0%;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(229,72,77,.9), rgba(246,195,67,.9), rgba(35,197,82,.9));
-  transition: width .35s ease;
+  background: linear-gradient(
+    90deg,
+    rgba(251, 0, 9, 0.90),
+    rgba(255, 183, 0, 0.90),
+    rgba(0, 251, 71, 0.90)
+  );
+  transition: width .35s ease, transform .18s ease;
+  transform-origin: center;
+}
+
+.winFill.show{
+  transform: scaleY(1.18);
+}
+
+/* --- Juicy FX --- */
+
+/* Deadly shake (short) */
+.shake{
+  animation: dangerShake .5s ease-in-out;
+}
+
+@keyframes dangerShake{
+  0%{ transform: translateX(0); }
+  15%{ transform: translateX(-3px); }
+  30%{ transform: translateX(3px); }
+  45%{ transform: translateX(-2px); }
+  60%{ transform: translateX(2px); }
+  75%{ transform: translateX(-1px); }
+  100%{ transform: translateX(0); }
+}
+
+/* Confetti burst layer */
+.resultsCard{
+  position: relative;
+  overflow: hidden;
+}
+
+.confettiLayer{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.resultsCard > *{
+  position: relative;
+  z-index: 1;
+}
+
+.confetti{
+  position: absolute;
+  top: -10px;
+  border-radius: 4px;
+  opacity: 0.95;
+  background: rgba(7, 88, 249, 0.85);
+  animation: confettiFall 900ms ease-out forwards;
+}
+
+/* slight variety */
+.confetti:nth-child(3n){
+  background: rgba(173, 255, 196, 0.9);
+}
+.confetti:nth-child(3n+1){
+  background: rgba(246,195,67,.9);
+}
+.confetti:nth-child(3n+2){
+  background: rgba(229,72,77,.9);
+}
+
+@keyframes confettiFall{
+  0%{
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100%{
+    transform: translateY(140px) rotate(220deg);
+    opacity: 0;
+  }
 }
 
 /* ---- Settings ---- */
@@ -465,4 +633,31 @@ body{
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(255,255,255,.10);
   margin-top: 8px;
+}
+
+/* Tooltip UI */
+.tipWrap{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tipBtn{
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+  cursor: help;
+  padding: 0;
+}
+
+.tipBtn:hover{
+  color: var(--text);
+  border-color: rgba(255,255,255,.28);
 }

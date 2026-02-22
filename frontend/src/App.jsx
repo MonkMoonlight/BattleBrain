@@ -4,7 +4,6 @@ import { useLocation } from "react-router-dom";
 import logo from "./assets/battlebrain-logo.png";
 import Login from "./pages/Login.jsx";
 import Builder from "./pages/Builder.jsx";
-import Results from "./pages/Results.jsx";
 import Settings from "./pages/Settings.jsx";
 
 export default function App() {
@@ -35,13 +34,6 @@ export default function App() {
             </NavLink>
 
             <NavLink
-              to="/results"
-              className={({ isActive }) => (isActive ? "navItem active" : "navItem")}
-            >
-              Results
-            </NavLink>
-
-            <NavLink
               to="/settings"
               className={({ isActive }) => (isActive ? "navItem active" : "navItem")}
             >
@@ -57,7 +49,6 @@ export default function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/builder" element={<Builder />} />
-          <Route path="/results" element={<Results />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/builder" replace />} />
         </Routes>
