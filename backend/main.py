@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import requests
+
 
 app = FastAPI(title="BattleBrain R&D API")
 
@@ -47,22 +49,73 @@ def predict(enc: Encounter):
 @app.get("/open5e/monster")
 def open5e_monster(name: str):
     """
-    Minimal proof of external API integration.
-    Returns first matching monster's AC and HP to prefill the UI.
+    Returns a monster's AC and HP to prefill the UI.
+    Fixes fuzzy search returning unrelated monsters by:
+      1) Searching SRD first
+      2) Preferring exact name matches
+      3) Falling back gracefully
+      4) Following pagination
     """
-    url = "https://api.open5e.com/monsters/"
-    r = requests.get(url, params={"search": name}, timeout=10)
-    r.raise_for_status()
-    data = r.json()
+    base_url = "https://api.open5e.com/monsters/"
+    query = name.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="name cannot be empty")
 
-    results = data.get("results", [])
-    if not results:
-        return {"found": False, "message": "No monster found"}
+    def fetch_all(params, max_pages=3):
+        """Fetch up to max_pages of results to improve match quality."""
+        results = []
+        url = base_url
+        for _ in range(max_pages):
+            r = requests.get(url, params=params, timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            results.extend(data.get("results", []))
+            url = data.get("next")
+            if not url:
+                break
+            # when using "next", params are already baked into the URL
+            params = None
+        return results
 
-    m = results[0]
+    # 1) SRD-only fuzzy search first (best default for BattleBrain)
+    srd_results = fetch_all({"search": query, "document__slug": "5esrd"}, max_pages=3)
+
+    # helper: exact name match
+    def exact_match(results):
+        q = query.lower()
+        for m in results:
+            if (m.get("name") or "").lower() == q:
+                return m
+        return None
+
+    # helper: best "starts with" match (nice for partial typing like "gob")
+    def startswith_match(results):
+        q = query.lower()
+        for m in results:
+            if (m.get("name") or "").lower().startswith(q):
+                return m
+        return None
+
+    # Try SRD exact -> SRD startswith -> SRD first result
+    monster = exact_match(srd_results) or startswith_match(srd_results)
+    if not monster and srd_results:
+        monster = srd_results[0]
+
+    # 2) If SRD has nothing, broaden search (still try exact first)
+    if not monster:
+        all_results = fetch_all({"search": query}, max_pages=3)
+        monster = exact_match(all_results) or startswith_match(all_results)
+        if not monster and all_results:
+            monster = all_results[0]
+
+    if not monster:
+        return {"found": False, "message": f"No monster found for '{query}'"}
+
     return {
         "found": True,
-        "name": m.get("name"),
-        "armor_class": m.get("armor_class"),
-        "hit_points": m.get("hit_points"),
+        "name": monster.get("name"),
+        "armor_class": monster.get("armor_class"),
+        "hit_points": monster.get("hit_points"),
+        "document": (monster.get("document__slug") or monster.get("document")),
+        "slug": monster.get("slug"),
     }
