@@ -661,3 +661,23 @@ body{
   color: var(--text);
   border-color: rgba(255,255,255,.28);
 }
+
+/* --- Spinner (for Search / Predict loading) --- */
+.spinner{
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(231,238,252,.35);
+  border-top-color: rgba(231,238,252,.95);
+  animation: spin .75s linear infinite;
+}
+
+@keyframes spin{
+  to { transform: rotate(360deg); }
+}
+
+.btnInner{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

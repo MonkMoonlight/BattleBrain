@@ -4,7 +4,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import joblib
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
+OPEN5E_BASE = "https://api.open5e.com/monsters/"
+
+session = requests.Session()
+retries = Retry(
+    total=3,                 # try up to 3 additional times
+    backoff_factor=0.6,      # 0.6s, 1.2s, 2.4s ...
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET"],
+    raise_on_status=False,
+)
+adapter = HTTPAdapter(max_retries=retries)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
 
 app = FastAPI(title="BattleBrain R&D API")
 
@@ -50,13 +65,15 @@ def predict(enc: Encounter):
 def open5e_monster(name: str):
     """
     Returns a monster's AC and HP to prefill the UI.
+    Uses SRD-first search, prefers exact/startswith matches,
+    follows pagination, and fails gracefully on Open5e timeouts.
     Fixes fuzzy search returning unrelated monsters by:
       1) Searching SRD first
       2) Preferring exact name matches
       3) Falling back gracefully
       4) Following pagination
     """
-    base_url = "https://api.open5e.com/monsters/"
+    
     query = name.strip()
     if not query:
         raise HTTPException(status_code=400, detail="name cannot be empty")
@@ -64,22 +81,42 @@ def open5e_monster(name: str):
     def fetch_all(params, max_pages=3):
         """Fetch up to max_pages of results to improve match quality."""
         results = []
-        url = base_url
+        url = OPEN5E_BASE
+
         for _ in range(max_pages):
-            r = requests.get(url, params=params, timeout=10)
-            r.raise_for_status()
+            try:
+                r = session.get(url, params=params, timeout=(5, 20))  # ✅ uses retry session
+                r.raise_for_status()
+            except requests.exceptions.ReadTimeout:
+                # graceful timeout
+                return {"_error": "timeout"}
+            except requests.exceptions.RequestException:
+                # graceful generic failure
+                return {"_error": "request_failed"}
+
             data = r.json()
             results.extend(data.get("results", []))
+
             url = data.get("next")
             if not url:
                 break
+
             # when using "next", params are already baked into the URL
             params = None
+
         return results
+
 
     # 1) SRD-only fuzzy search first (best default for BattleBrain)
     srd_results = fetch_all({"search": query, "document__slug": "5esrd"}, max_pages=3)
-
+    if isinstance(srd_results, dict) and srd_results.get("_error"):
+        return {
+            "found": False,
+            "message": "Open5e timed out (slow response). Try again, or enter HP/AC manually."
+            if srd_results["_error"] == "timeout"
+            else "Open5e request failed. Try again later."
+        }
+    
     # helper: exact name match
     def exact_match(results):
         q = query.lower()
@@ -104,9 +141,15 @@ def open5e_monster(name: str):
     # 2) If SRD has nothing, broaden search (still try exact first)
     if not monster:
         all_results = fetch_all({"search": query}, max_pages=3)
-        monster = exact_match(all_results) or startswith_match(all_results)
-        if not monster and all_results:
-            monster = all_results[0]
+        if isinstance(all_results, dict) and all_results.get("_error"):
+            return {
+                "found": False,
+                "message": "Open5e timed out (slow response). Try again, or enter HP/AC manually."
+                if all_results["_error"] == "timeout"
+                else "Open5e request failed. Try again later."
+            }
+
+        monster = exact_match(all_results) or startswith_match(all_results) or (all_results[0] if all_results else None)
 
     if not monster:
         return {"found": False, "message": f"No monster found for '{query}'"}

@@ -661,7 +661,10 @@ Win Probability: ${winPct}%`;
               disabled={loadingMonster || !monsterSearch.trim()}
               title={!monsterSearch.trim() ? "Enter a monster name to search Open5e" : ""}
             >
-              {loadingMonster ? "Searching..." : "Search"}
+              <span className="btnInner">
+                {loadingMonster && <span className="spinner" aria-hidden="true" />}
+                {loadingMonster ? "Searching..." : "Search"}
+              </span>
             </button>
           </div>
 
