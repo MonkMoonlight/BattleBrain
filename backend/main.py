@@ -1,10 +1,13 @@
+from difflib import SequenceMatcher
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from functools import lru_cache
 import joblib
+from pydantic import BaseModel
 import requests
 from requests.adapters import HTTPAdapter
+import time
 from urllib3.util.retry import Retry
 
 OPEN5E_BASE = "https://api.open5e.com/monsters/"
@@ -85,7 +88,7 @@ def open5e_monster(name: str):
 
         for _ in range(max_pages):
             try:
-                r = session.get(url, params=params, timeout=(5, 20))  # ✅ uses retry session
+                r = session.get(url, params=params, timeout=(5, 20))  # uses retry session
                 r.raise_for_status()
             except requests.exceptions.ReadTimeout:
                 # graceful timeout
@@ -162,3 +165,120 @@ def open5e_monster(name: str):
         "document": (monster.get("document__slug") or monster.get("document")),
         "slug": monster.get("slug"),
     }
+
+# simple in-memory cache (no extra deps)
+_suggest_cache = {}  # key -> (timestamp, data)
+SUGGEST_TTL = 60 * 10  # 10 minutes
+
+@app.get("/open5e/suggest")
+def open5e_suggest(query: str):
+    q = query.strip()
+    if not q:
+        return {"results": []}
+
+    key = q.lower()
+    now = time.time()
+
+    # serve cache
+    if key in _suggest_cache:
+        ts, data = _suggest_cache[key]
+        if now - ts < SUGGEST_TTL:
+            return {"results": data}
+
+    def pull(params):
+        r = session.get(OPEN5E_BASE, params=params, timeout=(5, 20))
+        r.raise_for_status()
+        data = r.json()
+        return data.get("results", [])
+
+    try:
+        results = pull({"search": q, "document__slug": "5esrd"})
+        if not results:
+            results = pull({"search": q})  # fallback
+    except Exception:
+        return {"results": []}
+
+    ql = key
+
+    def score(name: str) -> float:
+        nl = (name or "").lower().strip()
+        if not nl:
+            return 999.0
+
+        # exact match wins
+        if nl == ql:
+            return 0.0
+
+        # starts with is very strong
+        if nl.startswith(ql):
+            return 1.0
+
+        # word startswith: "goblin boss" when q="gob"
+        words = nl.replace("-", " ").split()
+        if any(w.startswith(ql) for w in words):
+            return 2.0
+
+        # contains is next best
+        if ql in nl:
+            return 3.0
+
+        # fuzzy similarity fallback (lower is better)
+        sim = SequenceMatcher(None, ql, nl).ratio()  # 0..1
+        return 10.0 - sim  # convert to "lower is better"
+
+    # map + dedupe
+    seen = set()
+    items = []
+    for m in results:
+        name = m.get("name")
+        slug = m.get("slug")
+        if not name:
+            continue
+        k = (name.lower(), slug or "")
+        if k in seen:
+            continue
+        seen.add(k)
+        items.append({"name": name, "slug": slug})
+
+    # 1) Prefer “real” matches first (name contains query)
+    contains = [it for it in items if ql in it["name"].lower()]
+    not_contains = [it for it in items if ql not in it["name"].lower()]
+
+    # rank both lists (contains first)
+    contains.sort(key=lambda it: score(it["name"]))
+    not_contains.sort(key=lambda it: score(it["name"]))
+
+    ranked = (contains + not_contains)[:10]
+
+    # don't cache empty results
+    if ranked:
+        _suggest_cache[key] = (now, ranked)
+
+    return {"results": ranked}
+    q = query.strip()
+    if not q:
+        return {"results": []}
+
+    key = q.lower()
+    now = time.time()
+    if key in _suggest_cache:
+        ts, data = _suggest_cache[key]
+        if now - ts < SUGGEST_TTL:
+            return {"results": data}
+
+    def pull(params):
+        r = session.get(OPEN5E_BASE, params=params, timeout=(5, 20))
+        r.raise_for_status()
+        data = r.json()
+        return data.get("results", [])
+
+    try:
+        results = pull({"search": q, "document__slug": "5esrd"})
+        if not results:
+            results = pull({"search": q})  # fallback
+    except Exception:
+        return {"results": []}
+
+    top = [{"name": m.get("name"), "slug": m.get("slug")} for m in results if m.get("name")][:10]
+    _suggest_cache[key] = (now, top)
+    return {"results": top}

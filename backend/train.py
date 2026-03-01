@@ -40,7 +40,7 @@ def main():
     # Save trained model to disk (proves persistence)
     joblib.dump(model, "model.pkl")
 
-    print("✅ Saved dataset.csv and model.pkl")
+    print("Saved dataset.csv and model.pkl")
 
 if __name__ == "__main__":
     main()

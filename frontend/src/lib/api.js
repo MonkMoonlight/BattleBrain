@@ -32,3 +32,10 @@ export async function predictEncounter(payload) {
   if (!res.ok) throw new Error(`Predict request failed (${res.status})`);
   return res.json();
 }
+
+export async function fetchMonsterSuggestions(query) {
+  const url = `${API_BASE}/open5e/suggest?query=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  if (!res.ok) return { results: [] };
+  return res.json();
+}

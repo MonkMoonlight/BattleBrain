@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { fetchMonsterByName, predictEncounter } from "../lib/api.js";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { fetchMonsterByName, fetchMonsterSuggestions, predictEncounter } from "../lib/api.js";
 import { validateStats } from "../lib/validate.js";
 import PredictionCard from "../components/PredictionCard.jsx";
 
@@ -25,10 +25,15 @@ const PARTY_CLASSES = [
   "Wizard",
 ];
 
+
+
 export default function Builder() {
 
   const [predictionResult, setPredictionResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const suggestRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const [init] = useState(() => {
     const enemyId = newId();
@@ -48,11 +53,17 @@ export default function Builder() {
 
   const [monsterSearch, setMonsterSearch] = useState("");
 
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
+  const [monsterStatus, setMonsterStatus] = useState("");
+  const [monsterError, setMonsterError] = useState("");
+
+  const [predictStatus, setPredictStatus] = useState("");
+  const [predictError, setPredictError] = useState("");
 
   const [loadingMonster, setLoadingMonster] = useState(false);
   const [loadingPredict, setLoadingPredict] = useState(false);
+
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSug, setShowSug] = useState(false);
 
   useEffect(() => {
     try {
@@ -90,7 +101,45 @@ export default function Builder() {
     } catch {
       // ignore invalid storage
     }
+
+    function handleClickOutside(event) {
+      if (suggestRef.current && !suggestRef.current.contains(event.target)) {
+        setShowSug(false);
+        setIsSearchFocused(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+    
   }, []);
+
+  useEffect(() => {
+    if (loadingMonster) return;
+
+    const q = monsterSearch.trim();
+    if (!isSearchFocused || !q) {
+      setSuggestions([]);
+      setShowSug(false);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      try {
+        const data = await fetchMonsterSuggestions(q);
+        const list = data.results || [];
+        setSuggestions(list);
+
+        // only show if focused + has results
+        setShowSug(list.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowSug(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [monsterSearch, loadingMonster, isSearchFocused]);
 
   const effectiveParty = useMemo(() => {
     const totalHp = partyMembers.reduce((sum, m) => sum + (Number(m.hp) || 0), 0);
@@ -232,9 +281,39 @@ Win Probability: ${winPct}%`;
     setEnemies((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }
 
-  async function onSearchMonster() {
-    setError("");
+  function clearPartyMember(id) {
+    updatePartyMember(id, {
+      name: "",
+      className: "Fighter", 
+      hp: "0",
+      ac: "0",
+    });
+  }
+
+  function clearEnemy(id) {
+    updateEnemy(id, {
+      label: "",
+      name: "",
+      fullName: "",
+      hp: "0",
+      ac: "0",
+      qty: 1,
+    });
+
+    setMonsterSearch("");
+    setSuggestions([]);
+    setShowSug(false);
     setStatus("");
+    setError("");
+  }
+
+  async function onSearchMonster() {
+    setShowSug(false);
+    setIsSearchFocused(false);
+    searchInputRef.current?.blur();
+    setSuggestions([]);
+    setMonsterError("");
+    setMonsterStatus("");
     setLoadingMonster(true);
 
     try {
@@ -246,36 +325,40 @@ Win Probability: ${winPct}%`;
       const data = await fetchMonsterByName(monsterSearch);
 
       if (data?.found) {
-        const clean = monsterSearch.trim();
+        const properName = data.name?.trim() || monsterSearch.trim();
 
         updateEnemy(selectedEnemyId, {
-          name: clean,
-          fullName: data.name || clean,
+          name: properName,        // use official Open5e name
+          fullName: properName,    // keep both aligned
           hp: typeof data.hit_points === "number" ? data.hit_points : "",
           ac: typeof data.armor_class === "number" ? data.armor_class : "",
         });
 
-        setStatus(`Loaded: ${data.name}`);
+        setMonsterSearch(properName); // optional but recommended
+        setMonsterStatus(`Loaded: ${data.name}`);
       } else {
-        setStatus(data?.message || "No monster found");
+        setMonsterStatus(data?.message || "No monster found");
       }
     } catch {
-      setError("Open5e request failed. Confirm backend is running.");
+      setMonsterError("Open5e request failed. Confirm backend is running.");
     } finally {
       setLoadingMonster(false);
     }
   }
 
   async function onPredict() {
-    setError("");
-    setStatus("");
+    setPredictError("");
+    setPredictStatus("");
 
     const errs = validateStats(stats);
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
     setLoadingPredict(true);
-    setStatus("Predicting...");
+    setPredictStatus("Predicting...");
+
+    const MIN_DELAY = 1000; // 1 seconds
+    const startTime = Date.now();
 
     try {
       const payload = {
@@ -287,16 +370,24 @@ Win Probability: ${winPct}%`;
 
       const prediction = await predictEncounter(payload);
 
+      // Ensure minimum loading time
+      const elapsed = Date.now() - startTime;
+      if (elapsed < MIN_DELAY) {
+        await new Promise(resolve =>
+          setTimeout(resolve, MIN_DELAY - elapsed)
+        );
+      }
+
       sessionStorage.setItem("bb_last_stats", JSON.stringify(payload));
       sessionStorage.setItem("bb_last_prediction", JSON.stringify(prediction));
       sessionStorage.setItem("bb_enemy_list", JSON.stringify(enemies));
       sessionStorage.setItem("bb_party_list", JSON.stringify(partyMembers));
 
       setPredictionResult(prediction);
-      setStatus("Done");
+      setPredictStatus("Done");
     } catch {
-      setError("Predict request failed. Confirm backend is running.");
-      setStatus("");
+      setPredictError("Predict request failed. Confirm backend is running.");
+      setPredictStatus("");
     } finally {
       setLoadingPredict(false);
     }
@@ -336,8 +427,11 @@ Win Probability: ${winPct}%`;
                       {m.name ? m.name : `Member ${idx + 1}`}
                       {m.className ? ` — ${m.className}` : ""}
                     </div>
-
-                    <div style={{ marginLeft: "auto" }}>
+                  
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8  }}>
+                        <button className="btn subtle" type="button" onClick={() => clearPartyMember(m.id)}>
+                          Clear
+                        </button>
                       <button
                         className="btn danger"
                         type="button"
@@ -471,7 +565,9 @@ Win Probability: ${winPct}%`;
 
         <section className="card panel enemyPanel">
           <h2 className="panelTitle">Opposing Forces</h2>
-
+              <div className="searchHint">
+                Tip: At the bottom of Opposing Forces you can search for official SRD monsters (e.g., “Goblin”, “Ogre”, “Dragon”) to auto-fill HP and AC.
+              </div>
           <div style={{ display: "grid", gap: 10 }}>
             {enemies.map((e, idx) => {
               const isSelected = e.id === selectedEnemyId;
@@ -489,7 +585,7 @@ Win Probability: ${winPct}%`;
                 >
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <button
-                      className="btn"
+                      className={`btn ${isSelected ? "selected" : ""}`}
                       type="button"
                       onClick={() => setSelectedEnemyId(e.id)}
                       style={{ padding: "8px 10px" }}
@@ -507,7 +603,10 @@ Win Probability: ${winPct}%`;
                       )}
                     </div>
 
-                    <div style={{ marginLeft: "auto" }}>
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 8  }}>
+                      <button className="btn subtle" type="button" onClick={() => clearEnemy(e.id)}>
+                        Clear
+                      </button>
                       <button
                         className="btn danger"
                         type="button"
@@ -634,26 +733,66 @@ Win Probability: ${winPct}%`;
           <div className="divider" />
 
           <div className="row">
-            <label className="field grow">
-              <span className="tipWrap">
-                Open5e search (fills selected row)
-                <button
-                  type="button"
-                  className="tipBtn"
-                  title="Search fills the currently selected enemy row."
-                  aria-label="Open5e Search help"
-                >
-                  ?
-                </button>
-              </span>
-              <input
-                className="input"
-                type="text"
-                value={monsterSearch}
-                onChange={(e) => setMonsterSearch(e.target.value)}
-                placeholder="e.g., goblin"
-              />
-            </label>
+            <div
+              className="grow"
+              style={{ position: "relative" }}
+              ref={suggestRef}
+            >
+              <label className="field" style={{ marginBottom: 0 }}>
+                <span className="tipWrap">
+                  Open5e search (fills selected row)
+                  <button
+                    type="button"
+                    className="tipBtn"
+                    title="Search fills the currently selected enemy row."
+                    aria-label="Open5e Search help"
+                  >
+                    ?
+                  </button>
+                </span>
+                <input
+                  ref={searchInputRef}
+                  className="input"
+                  type="text"
+                  value={monsterSearch}
+                  onChange={(e) => setMonsterSearch(e.target.value)}
+                  placeholder="e.g., goblin"
+                  onFocus={() => {
+                    setIsSearchFocused(true);
+                    if (suggestions.length > 0) setShowSug(true);
+                  }}
+                  onBlur={() => {
+                    setIsSearchFocused(false);
+                    // don’t close immediately; click-outside + onMouseDown handles selection
+                    setTimeout(() => setShowSug(false), 80);
+                  }}
+                />
+              </label>
+              {showSug && (
+                <div className="suggestBox">
+                  {suggestions.length === 0 ? (
+                    <div className="suggestItem" style={{ opacity: 0.7, cursor: "default" }}>
+                      No matches…
+                    </div>
+                  ) : (
+                    suggestions.map((s) => (
+                      <button
+                        key={s.slug || s.name}
+                        type="button"
+                        className="suggestItem"
+                        onMouseDown={(ev) => ev.preventDefault()}
+                        onClick={() => {
+                          setMonsterSearch(s.name);
+                          setShowSug(false);
+                        }}
+                      >
+                        {s.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
 
             <button
               className={`btn ${monsterSearch.trim() && !loadingMonster ? "searchActive" : ""}`}
@@ -666,8 +805,10 @@ Win Probability: ${winPct}%`;
                 {loadingMonster ? "Searching..." : "Search"}
               </span>
             </button>
-          </div>
 
+          </div>
+          {monsterStatus && <div className="status ok">{monsterStatus}</div>}
+          {monsterError && <div className="status err">{monsterError}</div>}
           {(fieldErrors.enemyHp || fieldErrors.enemyAc) && (
             <div className="fieldError">
               {fieldErrors.enemyHp ? `${fieldErrors.enemyHp} ` : ""}
@@ -681,20 +822,21 @@ Win Probability: ${winPct}%`;
         <h2 className="panelTitle">Prediction</h2>
 
         <button
-          className="btn primary big"
+          className={`btn primary big ${loadingPredict ? "isLoading" : ""}`}
           onClick={onPredict}
           disabled={loadingPredict || !isValidEncounter}
           title={!isValidEncounter ? "Enter valid Party and Enemy stats to enable prediction." : ""}
         >
-          {loadingPredict ? "Predicting..." : "Predict Encounter"}
+          <span className="btnInner">
+            {loadingPredict && <span className="spinner" aria-hidden="true" />}
+            {loadingPredict ? "Predicting..." : "Predict Encounter"}
+          </span>
         </button>
 
         <button className="btn subtle" onClick={resetEncounter} disabled={loadingPredict || loadingMonster}>
           Reset
         </button>
-
-        {status && <div className="status ok">{status}</div>}
-        {error && <div className="status err">{error}</div>}
+        
         {predictionResult && (
           <>
             <PredictionCard prediction={predictionResult} />
@@ -715,6 +857,8 @@ Win Probability: ${winPct}%`;
             </div>
           </>
         )}
+        {predictStatus && <div className="status ok">{predictStatus}</div>}
+        {predictError && <div className="status err">{predictError}</div>}
       </section>
     </div>
   );
